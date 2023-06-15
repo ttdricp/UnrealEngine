@@ -7,7 +7,7 @@ import (
 	"log"
 	"net"
 
-	pb "Final/protoc" // Update with your actual package path
+	pb "Final/protoc"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
@@ -15,11 +15,10 @@ import (
 
 type userServiceServer struct {
 	pb.UnimplementedUserServiceServer
-	db *sql.DB // PostgreSQL database connection
+	db *sql.DB
 }
 
 func (s *userServiceServer) Register(ctx context.Context, req *pb.RegistrationRequest) (*pb.RegistrationResponse, error) {
-	// Generate a unique user ID
 	userID := generateUserID()
 
 	// Store the user information in the database
@@ -37,7 +36,6 @@ func (s *userServiceServer) Register(ctx context.Context, req *pb.RegistrationRe
 }
 
 func (s *userServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	// Retrieve the login credentials from the request
 	username := req.GetUsername()
 	password := req.GetPassword()
 
@@ -48,14 +46,12 @@ func (s *userServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*p
 	}
 
 	if user == nil || user.Password != password {
-		// User not found or password doesn't match
 		return &pb.LoginResponse{
 			Success: false,
 			Message: "Invalid username or password",
 		}, nil
 	}
 
-	// User authenticated successfully
 	return &pb.LoginResponse{
 		Success: true,
 		Message: "User logged in successfully",
@@ -67,13 +63,11 @@ func (s *userServiceServer) ResetPassword(ctx context.Context, req *pb.ResetPass
 	email := req.GetEmail()
 	newPassword := req.GetNewPassword()
 
-	// Reset the password in the database
 	err := s.resetUserPassword(email, newPassword)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reset password: %v", err)
 	}
 
-	// Prepare the response indicating the password reset
 	res := &pb.ResetPasswordResponse{
 		Message: "Password reset successfully",
 	}
@@ -115,24 +109,19 @@ func (s *userServiceServer) resetUserPassword(email, newPassword string) error {
 }
 
 func generateUserID() string {
-	// Generate a UUID version 4 as a unique user ID
 	id := uuid.New()
-
-	// Convert the UUID to a string representation
 	userID := id.String()
 
 	return userID
 }
 
 func (s *userServiceServer) storeUser(userID, username, password, email string) error {
-	// Prepare the SQL statement for inserting a new user
 	stmt, err := s.db.Prepare("INSERT INTO users (id, username, password, email) VALUES ($1, $2, $3, $4)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	// Execute the SQL statement to insert the user into the database
 	_, err = stmt.Exec(userID, username, password, email)
 	if err != nil {
 		return err
@@ -142,34 +131,27 @@ func (s *userServiceServer) storeUser(userID, username, password, email string) 
 }
 
 func (s *userServiceServer) getUserByUsernameAndPassword(username, password string) (*pb.User, error) {
-	// Prepare the SQL statement for retrieving the user
 	stmt, err := s.db.Prepare("SELECT id, username, password, email FROM users WHERE username = $1")
 	if err != nil {
 		return nil, err
 	}
 	defer stmt.Close()
 
-	// Execute the SQL statement to retrieve the user from the database
 	row := stmt.QueryRow(username)
 
-	// Scan the retrieved user data into variables
 	var userID, retrievedUsername, retrievedPassword, email string
 	err = row.Scan(&userID, &retrievedUsername, &retrievedPassword, &email)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// User not found
 			return nil, nil
 		}
 		return nil, err
 	}
 
-	// Compare the retrieved password with the provided password
 	if retrievedPassword != password {
-		// Password doesn't match
 		return nil, nil
 	}
 
-	// Prepare the User proto message
 	user := &pb.User{
 		Id:       userID,
 		Username: retrievedUsername,
@@ -180,34 +162,36 @@ func (s *userServiceServer) getUserByUsernameAndPassword(username, password stri
 	return user, nil
 }
 
-func main() {
-	// Start a PostgreSQL database connection
+func startGRPCServer() error {
 	db, err := sql.Open("postgres", "host=localhost port=5432 user=postgres password=12345678 dbname=server sslmode=disable")
 	if err != nil {
-		log.Fatalf("Failed to connect to the database: %v", err)
+		return fmt.Errorf("failed to connect to the database: %v", err)
 	}
 	defer db.Close()
 
-	// Initialize the user service server
 	server := &userServiceServer{
 		db: db,
 	}
 
-	// Create a TCP listener on port 50051
 	listener, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		log.Fatalf("Failed to create listener: %v", err)
+		return fmt.Errorf("failed to create listener: %v", err)
 	}
 
-	// Create a new gRPC server
 	grpcServer := grpc.NewServer()
 
-	// Register the user service server with the gRPC server
 	pb.RegisterUserServiceServer(grpcServer, server)
 
-	// Start serving requests
 	log.Println("Server started. Listening on :50051")
 	if err := grpcServer.Serve(listener); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+		return fmt.Errorf("failed to serve: %v", err)
+	}
+
+	return nil
+}
+
+func main() {
+	if err := startGRPCServer(); err != nil {
+		log.Fatalf("Failed to start gRPC server: %v", err)
 	}
 }

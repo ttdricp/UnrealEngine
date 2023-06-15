@@ -7,27 +7,24 @@ import (
 	"log"
 	"os"
 
-	pb "Final/protoc" // Update with your actual package path
+	pb "Final/protoc"
 
 	"google.golang.org/grpc"
 )
 
 func main() {
-	// Set up a connection to the gRPC server
 	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 	defer conn.Close()
 
-	// Create a new UserService client
 	client := pb.NewUserServiceClient(conn)
 
-	// Perform user registration
 	registerReq := &pb.RegistrationRequest{
-		Username: "slava1",
+		Username: "slava",
 		Password: promptPassword("Enter the password: "),
-		Email:    "slava1@example.com",
+		Email:    "slava@example.com",
 	}
 	registerRes, err := client.Register(context.Background(), registerReq)
 	if err != nil {
@@ -35,9 +32,8 @@ func main() {
 	}
 	log.Printf("Registration successful. User ID: %s", registerRes.GetUserId())
 
-	// Perform user login
 	loginReq := &pb.LoginRequest{
-		Username: "slava1",
+		Username: "slava",
 		Password: registerReq.GetPassword(),
 	}
 	loginRes, err := client.Login(context.Background(), loginReq)
@@ -47,10 +43,8 @@ func main() {
 	log.Printf("Login successful. User ID: %s", loginRes.GetUserId())
 
 	// Request password reset
-	// Request password reset
-	// Request password reset
 	resetPasswordReq := &pb.ResetPasswordRequest{
-		Email:       "slava1@example.com",
+		Email:       "slava@example.com",
 		NewPassword: promptPassword("Enter the new password: "),
 	}
 	_, err = client.ResetPassword(context.Background(), resetPasswordReq)
@@ -58,9 +52,8 @@ func main() {
 		log.Fatalf("Password reset failed: %v", err)
 	}
 
-	// Perform user login with the new password
 	loginReqNew := &pb.LoginRequest{
-		Username: "slava1",
+		Username: "slava",
 		Password: promptPassword("Login with the new password: "),
 	}
 	_, err = client.Login(context.Background(), loginReqNew)
